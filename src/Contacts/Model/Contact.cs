@@ -1,4 +1,4 @@
-namespace View.Model;
+namespace Model;
 
 /// <summary>Имя, телефон и почта одной записи адресной книги.</summary>
 public class Contact

@@ -1,36 +1,57 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
-using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Model;
 using Model.Services;
-using View.Model;
 
 namespace ViewModel;
 
-public class MainVM : INotifyPropertyChanged
+public partial class MainVM : ObservableObject
 {
     private readonly ContactSerializer store;
     private bool loadFailed;
-    private ContactVM? selection;
-    private ContactVM editor = new ContactVM(new Contact());
-    private bool editing;
-    private string status = "";
-
     public ObservableCollection<ContactVM> Contacts { get; } = new();
-    public RelayCommand AddContactCommand { get; }
-    public RelayCommand EditContactCommand { get; }
-    public RelayCommand RemoveContactCommand { get; }
-    public RelayCommand ApplyContactCommand { get; }
-    public event PropertyChangedEventHandler? PropertyChanged;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(EditContactCommand), nameof(RemoveContactCommand))]
+    private ContactVM? selectedListContact;
+
+    [ObservableProperty]
+    private ContactVM selectedContact = new ContactVM(new Contact());
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsReadOnly))]
+    [NotifyCanExecuteChangedFor(nameof(AddContactCommand), nameof(EditContactCommand),
+        nameof(RemoveContactCommand), nameof(ApplyContactCommand))]
+    private bool isEditing;
+
+    [ObservableProperty]
+    private string statusMessage = "";
+
+    public bool IsReadOnly => !IsEditing;
+    private bool CanAdd() => !IsEditing;
+
+    partial void OnSelectedListContactChanged(ContactVM? value)
+    {
+        IsEditing = false;
+        SelectedContact = CopyOf(value);
+    }
+
+    partial void OnIsEditingChanged(bool value) => SelectedContact.IsEditing = value;
+
+    partial void OnSelectedContactChanged(ContactVM? oldValue, ContactVM newValue)
+    {
+        if (oldValue != null) oldValue.ErrorsChanged -= OnErrorsChanged;
+        newValue.IsEditing = IsEditing;
+        newValue.ErrorsChanged += OnErrorsChanged;
+        ApplyContactCommand.NotifyCanExecuteChanged();
+    }
 
     public MainVM(string? filePath = null)
     {
         store = new ContactSerializer(filePath);
-        AddContactCommand = new RelayCommand(AddContact, () => !IsEditing);
-        EditContactCommand = new RelayCommand(EditContact, CanUseSelection);
-        RemoveContactCommand = new RelayCommand(RemoveContact, CanUseSelection);
-        ApplyContactCommand = new RelayCommand(ApplyContact, CanApply);
         try
         {
             foreach (var contact in store.Load()) Contacts.Add(new ContactVM(contact));
@@ -43,64 +64,15 @@ public class MainVM : INotifyPropertyChanged
         }
     }
 
-    public ContactVM? SelectedListContact
-    {
-        get => selection;
-        set
-        {
-            if (ReferenceEquals(selection, value)) return;
-            selection = value;
-            Notify();
-            IsEditing = false;
-            SelectedContact = CopyOf(value);
-            UpdateCommands();
-        }
-    }
-
-    public ContactVM SelectedContact
-    {
-        get => editor;
-        private set
-        {
-            editor.ErrorsChanged -= OnErrorsChanged;
-            editor = value;
-            editor.IsEditing = IsEditing;
-            editor.ErrorsChanged += OnErrorsChanged;
-            Notify();
-            ApplyContactCommand.NotifyCanExecuteChanged();
-        }
-    }
-
-    public bool IsEditing
-    {
-        get => editing;
-        private set
-        {
-            if (editing == value) return;
-            editing = value;
-            SelectedContact.IsEditing = value;
-            Notify();
-            Notify(nameof(IsReadOnly));
-            UpdateCommands();
-        }
-    }
-
-    public bool IsReadOnly => !IsEditing;
-
-    public string StatusMessage
-    {
-        get => status;
-        private set { status = value; Notify(); }
-    }
-
     private static ContactVM CopyOf(ContactVM? contact) =>
         new ContactVM(contact?.ToModel() ?? new Contact());
-    private bool CanUseSelection() => !IsEditing && selection != null;
+    private bool CanUseSelection() => !IsEditing && SelectedListContact != null;
     private bool CanApply() => IsEditing && !SelectedContact.HasErrors;
 
     private void OnErrorsChanged(object? sender, DataErrorsChangedEventArgs e) =>
         ApplyContactCommand.NotifyCanExecuteChanged();
 
+    [RelayCommand(CanExecute = nameof(CanAdd))]
     private void AddContact()
     {
         SelectedListContact = null;
@@ -108,16 +80,18 @@ public class MainVM : INotifyPropertyChanged
         IsEditing = true;
     }
 
+    [RelayCommand(CanExecute = nameof(CanUseSelection))]
     private void EditContact()
     {
-        SelectedContact = CopyOf(selection);
+        SelectedContact = CopyOf(SelectedListContact);
         IsEditing = true;
     }
 
+    [RelayCommand(CanExecute = nameof(CanApply))]
     private void ApplyContact()
     {
         if (!CanApply()) return;
-        int index = selection == null ? -1 : Contacts.IndexOf(selection);
+        int index = SelectedListContact == null ? -1 : Contacts.IndexOf(SelectedListContact);
         Contact updated = SelectedContact.ToModel();
         var rows = Contacts.Select(c => c.ToModel()).ToList();
         if (index < 0) rows.Add(updated);
@@ -130,10 +104,11 @@ public class MainVM : INotifyPropertyChanged
         SelectedListContact = committed;
     }
 
+    [RelayCommand(CanExecute = nameof(CanUseSelection))]
     private void RemoveContact()
     {
         if (!CanUseSelection()) return;
-        int index = Contacts.IndexOf(selection!);
+        int index = Contacts.IndexOf(SelectedListContact!);
         var rows = Contacts.Select(c => c.ToModel()).ToList();
         rows.RemoveAt(index);
         if (!TrySave(rows)) return;
@@ -158,14 +133,4 @@ public class MainVM : INotifyPropertyChanged
         }
     }
 
-    private void UpdateCommands()
-    {
-        AddContactCommand.NotifyCanExecuteChanged();
-        EditContactCommand.NotifyCanExecuteChanged();
-        RemoveContactCommand.NotifyCanExecuteChanged();
-        ApplyContactCommand.NotifyCanExecuteChanged();
-    }
-
-    private void Notify([CallerMemberName] string? property = null) =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
 }
