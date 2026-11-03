@@ -1,30 +1,59 @@
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
+using System.ComponentModel.DataAnnotations;
+using CommunityToolkit.Mvvm.ComponentModel;
 using View.Model;
 
 namespace ViewModel;
 
-public class ContactVM : INotifyPropertyChanged
+/// <summary>Проверяет редактируемую копию контакта.</summary>
+public class ContactVM : ObservableValidator
 {
     private string name, phoneNumber, email;
+    private bool isEditing;
+
+    public bool IsEditing
+    {
+        get => isEditing;
+        internal set
+        {
+            if (SetProperty(ref isEditing, value)) OnPropertyChanged(nameof(IsReadOnly));
+        }
+    }
+
+    public bool IsReadOnly => !IsEditing;
 
     public ContactVM(Contact source)
     {
         name = source.Name ?? "";
         phoneNumber = source.PhoneNumber ?? "";
         email = source.Email ?? "";
+        ValidateAllProperties();
     }
 
-    public string Name { get => name; set => Set(ref name, value); }
-    public string PhoneNumber { get => phoneNumber; set => Set(ref phoneNumber, value); }
-    public string Email { get => email; set => Set(ref email, value); }
-    public Contact ToModel() => new Contact(Name, PhoneNumber, Email);
-
-    public event PropertyChangedEventHandler? PropertyChanged;
-    private void Set(ref string field, string value, [CallerMemberName] string? property = null)
+    [Required(ErrorMessage = "Введите имя.")]
+    [StringLength(100, ErrorMessage = "Имя не должно быть длиннее 100 символов.")]
+    public string Name
     {
-        if (field == value) return;
-        field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+        get => name;
+        set => SetProperty(ref name, value, true);
     }
+
+    [Required(ErrorMessage = "Введите номер телефона.")]
+    [StringLength(100, ErrorMessage = "Номер не должен быть длиннее 100 символов.")]
+    [RegularExpression(@"[0-9 +()\-]*", ErrorMessage = "Допустимы цифры, пробел, +, -, ( и ).")]
+    public string PhoneNumber
+    {
+        get => phoneNumber;
+        set => SetProperty(ref phoneNumber, value, true);
+    }
+
+    [Required(ErrorMessage = "Введите почту.")]
+    [StringLength(100, ErrorMessage = "Адрес не должен быть длиннее 100 символов.")]
+    [RegularExpression(@".*@.*", ErrorMessage = "В адресе должен быть символ @.")]
+    public string Email
+    {
+        get => email;
+        set => SetProperty(ref email, value, true);
+    }
+
+    public Contact ToModel() => new Contact(Name, PhoneNumber, Email);
 }

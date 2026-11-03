@@ -60,7 +60,15 @@ public class MainVM : INotifyPropertyChanged
     public ContactVM SelectedContact
     {
         get => editor;
-        private set { editor = value; Notify(); }
+        private set
+        {
+            editor.ErrorsChanged -= OnErrorsChanged;
+            editor = value;
+            editor.IsEditing = IsEditing;
+            editor.ErrorsChanged += OnErrorsChanged;
+            Notify();
+            ApplyContactCommand.NotifyCanExecuteChanged();
+        }
     }
 
     public bool IsEditing
@@ -70,6 +78,7 @@ public class MainVM : INotifyPropertyChanged
         {
             if (editing == value) return;
             editing = value;
+            SelectedContact.IsEditing = value;
             Notify();
             Notify(nameof(IsReadOnly));
             UpdateCommands();
@@ -87,7 +96,10 @@ public class MainVM : INotifyPropertyChanged
     private static ContactVM CopyOf(ContactVM? contact) =>
         new ContactVM(contact?.ToModel() ?? new Contact());
     private bool CanUseSelection() => !IsEditing && selection != null;
-    private bool CanApply() => IsEditing;
+    private bool CanApply() => IsEditing && !SelectedContact.HasErrors;
+
+    private void OnErrorsChanged(object? sender, DataErrorsChangedEventArgs e) =>
+        ApplyContactCommand.NotifyCanExecuteChanged();
 
     private void AddContact()
     {
