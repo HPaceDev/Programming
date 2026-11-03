@@ -1,0 +1,47 @@
+<Window x:Class="View.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:View.Controls" Title="Contacts"
+        Width="720" Height="420" MinWidth="540" MinHeight="340" Background="White">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="VisibilityOfBool"/>
+        <Style TargetType="TextBlock"><Setter Property="Margin" Value="3"/></Style>
+        <Style TargetType="TextBox"><Setter Property="Margin" Value="3"/></Style>
+        <Style TargetType="Button"><Setter Property="Height" Value="25"/><Setter Property="Margin" Value="3"/></Style>
+        <DrawingImage x:Key="ContactPhoto">
+            <DrawingImage.Drawing><DrawingGroup>
+                <GeometryDrawing Brush="#EEEEEE" Geometry="M0,0 H100 V100 H0 Z"/>
+                <GeometryDrawing Brush="#A6ABB1" Geometry="M50,18 A16,16 0 1 1 49.9,18 Z M14,88 C16,52 84,52 86,88 Z"/>
+            </DrawingGroup></DrawingImage.Drawing>
+        </DrawingImage>
+        <DataTemplate x:Key="ContactTemplate">
+            <StackPanel Orientation="Horizontal">
+                <Image Source="{StaticResource ContactPhoto}" Width="32" Height="32" Margin="3"/>
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}"/>
+                    <TextBlock Text="{Binding PhoneNumber}" FontSize="11"/>
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="2*" MinWidth="185"/><ColumnDefinition Width="3"/><ColumnDefinition Width="3*" MinWidth="265"/></Grid.ColumnDefinitions>
+        <Border Background="#F8F8F8" Padding="8">
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top"><TextBlock Text="Find:" VerticalAlignment="Center"/><TextBox IsReadOnly="True" ToolTip="Поиск не входит в это задание"/></DockPanel>
+                <UniformGrid Columns="3" DockPanel.Dock="Bottom">
+                    <Button Content="Add" Command="{Binding AddContactCommand}"/>
+                    <Button Content="Edit" Command="{Binding EditContactCommand}"/>
+                    <Button Content="Remove" Command="{Binding RemoveContactCommand}"/>
+                </UniformGrid>
+                <ListBox Margin="3" ItemsSource="{Binding Contacts}" ItemTemplate="{StaticResource ContactTemplate}"
+                         SelectedItem="{Binding SelectedListContact, Mode=TwoWay}"/>
+            </DockPanel>
+        </Border>
+        <GridSplitter Grid.Column="1" Width="3" Background="White" HorizontalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"/>
+        <StackPanel Grid.Column="2" Margin="8">
+            <controls:ContactControl DataContext="{Binding SelectedContact}"/>
+            <Button Content="Apply" Width="75" Margin="3,50,3,3" Command="{Binding ApplyContactCommand}"
+                    Visibility="{Binding IsEditing, Converter={StaticResource VisibilityOfBool}}"/>
+            <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+        </StackPanel>
+    </Grid>
+</Window>
