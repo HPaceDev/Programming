@@ -1,10 +1,11 @@
 using System.IO;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using View.Model;
 
 namespace Model.Services;
 
-public class ContactSerializer
+public sealed class ContactSerializer
 {
     public string FilePath { get; }
 
@@ -14,16 +15,34 @@ public class ContactSerializer
         FilePath = filePath ?? Path.Combine(documents, "Contacts", "contacts.json");
     }
 
-    public void Save(Contact contact)
+    public List<Contact> Load()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(FilePath))!);
-        string json = JsonConvert.SerializeObject(contact, Formatting.Indented);
-        File.WriteAllText(FilePath, json);
+        if (!File.Exists(FilePath)) return new List<Contact>();
+
+        var document = JToken.Parse(File.ReadAllText(FilePath));
+        // Ранее один контакт сохранялся в том же файле отдельным объектом.
+        if (document is JObject single)
+            return new List<Contact> { single.ToObject<Contact>()! };
+        if (document is not JArray array || array.Any(row => row is not JObject))
+            throw new JsonSerializationException("В файле ожидался список контактов.");
+        return array.ToObject<List<Contact>>()!;
     }
 
-    public Contact Load()
+    public void Save(IEnumerable<Contact> contacts)
     {
-        if (!File.Exists(FilePath)) return new Contact();
-        return JsonConvert.DeserializeObject<Contact>(File.ReadAllText(FilePath)) ?? new Contact();
+        var fullPath = Path.GetFullPath(FilePath);
+        var dir = Path.GetDirectoryName(fullPath)!;
+        Directory.CreateDirectory(dir);
+        string temp = Path.Combine(dir, Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            string json = JsonConvert.SerializeObject(contacts, Formatting.Indented);
+            File.WriteAllText(temp, json);
+            File.Move(temp, fullPath, true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) File.Delete(temp);
+        }
     }
 }

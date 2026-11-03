@@ -8,6 +8,6 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        DataContext = new MainVM();
+        DataContext = new MainVM(Environment.GetEnvironmentVariable("CONTACTS_JSON_PATH"));
     }
 }
